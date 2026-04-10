@@ -4,6 +4,15 @@ from voice.input import listen_command
 from voice.output import speak
 
 
+def is_simple_command(command):
+    keywords = ["open", "search", "play"]
+    return any(command.startswith(k) for k in keywords)
+
+
+def planner(command):
+    return execute("analyze_context", {"query": command})
+
+
 while True:
     typed_mode = False
     command = listen_command()
@@ -31,6 +40,15 @@ while True:
     )
 
     for cmd in commands_list:
+        if not is_simple_command(cmd):
+            ai_response = planner(cmd)
+            if ai_response:
+                print(ai_response)
+                speak(ai_response)
+            else:
+                speak("I could not analyze that right now")
+            continue
+
         intent, params = route_command(cmd)
 
         if intent == "play_media" and has_interaction_step:

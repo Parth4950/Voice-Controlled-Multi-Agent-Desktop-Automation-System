@@ -9,6 +9,16 @@ def route_command(command: str):
         "auto",
         "automatically",
     ]
+    context_keywords = [
+        "explain",
+        "what is",
+        "why",
+        "error",
+        "debug",
+        "fix",
+        "issue",
+        "problem",
+    ]
 
     if "remember" in command:
         cleaned = command.replace("remember", "", 1).strip()
@@ -24,6 +34,8 @@ def route_command(command: str):
         if key:
             return ("recall", {"key": key})
         return ("unknown", {})
+    elif any(keyword in command for keyword in context_keywords):
+        return ("analyze_context", {"query": command})
     elif "open" in command:
         words = command.split()
         open_index = words.index("open")

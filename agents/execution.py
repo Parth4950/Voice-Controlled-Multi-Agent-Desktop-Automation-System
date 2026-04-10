@@ -6,10 +6,29 @@ from tools.system_tools import (
     search_google,
 )
 from memory.memory import remember, recall
+from context.screen import capture_screen, extract_text
+from ai.gemini import ask_gemini
 
 
 def execute(intent, params):
-    if intent == "remember":
+    if intent == "analyze_context":
+        img = capture_screen()
+        text = extract_text(img)
+
+        prompt = f"""
+    The user is looking at the following screen content:
+
+    {text}
+
+    User question:
+    {params["query"]}
+
+    Explain clearly and helpfully.
+    """
+
+        response = ask_gemini(prompt)
+        return response
+    elif intent == "remember":
         remember(params["key"], params["value"])
     elif intent == "recall":
         value = recall(params["key"])

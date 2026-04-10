@@ -1,0 +1,10 @@
+google-generativeai
+python-dotenv
+pyautogui
+pytesseract
+Pillow
+pyttsx3
+SpeechRecognition
+selenium
+webdriver-manager
+PyAudio

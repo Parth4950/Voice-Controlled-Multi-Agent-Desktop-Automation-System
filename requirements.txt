@@ -5,6 +5,5 @@ pytesseract
 Pillow
 pyttsx3
 SpeechRecognition
-selenium
-webdriver-manager
+playwright
 PyAudio

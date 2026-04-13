@@ -1,0 +1,10 @@
+{
+  "tesseract_cmd": "C:\\Program Files\\Tesseract-OCR\\tesseract.exe",
+  "playwright_user_data_dir": "C:\\Users\\YOUR_USER\\AppData\\Local\\Google\\Chrome\\BruhProfile-PW",
+  "app_map": {
+    "chrome": "C:\\Users\\YOUR_USER\\AppData\\Local\\Google\\Chrome\\Application\\chrome.exe",
+    "notepad": "notepad",
+    "calculator": "calc",
+    "spotify": "C:\\Users\\YOUR_USER\\AppData\\Local\\Microsoft\\WindowsApps\\Spotify.exe"
+  }
+}

@@ -1,58 +1,23 @@
+import ctypes
 import os
 import subprocess
 import webbrowser
+from datetime import datetime
 from urllib.parse import quote_plus
 
-from selenium.webdriver.common.by import By
-from selenium.webdriver.common.keys import Keys
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.support.ui import WebDriverWait
-from tools.browser import get_driver
+import pyautogui
 
-APP_MAP = {
-    "chrome": r"C:\Users\chand\AppData\Local\Google\Chrome\Application\chrome.exe",
-    "google chrome": r"C:\Users\chand\AppData\Local\Google\Chrome\Application\chrome.exe",
-
-    "notepad": "notepad",
-    "calculator": "calc",
-    "calc": "calc",
-
-    "file explorer": "explorer",
-    "explorer": "explorer",
-
-    "vscode": "code",
-    "visual studio code": "code",
-
-    "spotify": r"C:\Users\chand\AppData\Local\Microsoft\WindowsApps\Spotify.exe",
-
-    "youtube": "https://www.youtube.com",
-    "netflix": "https://www.netflix.com",
-}
-
-APP_FALLBACKS = {
-    "spotify": [
-        r"C:\Users\chand\AppData\Roaming\Spotify\Spotify.exe",
-        r"C:\Users\chand\AppData\Local\Microsoft\WindowsApps\Spotify.exe",
-        "spotify:",
-    ],
-    "vscode": [
-        r"C:\Users\chand\AppData\Local\Programs\Microsoft VS Code\Code.exe",
-        r"C:\Program Files\Microsoft VS Code\Code.exe",
-        "code",
-    ],
-    "cursor": [
-        r"C:\Users\chand\AppData\Local\Programs\Cursor\Cursor.exe",
-        r"C:\Program Files\Cursor\Cursor.exe",
-    ],
-    "whatsapp": [
-        r"C:\Users\chand\AppData\Local\WhatsApp\WhatsApp.exe",
-        r"C:\Users\chand\AppData\Local\Microsoft\WindowsApps\WhatsApp.exe",
-        "whatsapp:",
-    ],
-    "file explorer": [r"C:\Windows\explorer.exe"],
-    "explorer": [r"C:\Windows\explorer.exe"],
-    "haveloc": [r"C:\Program Files\Haveloc\Haveloc.exe"],
-}
+from tools.log import safe_log
+from tools.browser import (
+    get_browser,
+    new_page,
+    safe_click,
+    wait_ready,
+    is_browser_alive,
+    close_browser,
+    _PW_OK,
+)
+from config import APP_MAP, APP_FALLBACKS, PROCESS_MAP
 
 
 def open_app(app_name):
@@ -66,12 +31,8 @@ def open_app(app_name):
             launch_targets.append(mapped)
         launch_targets.extend(fallbacks)
 
-        if not launch_targets:
-            print("Bruh, I don’t know this app yet")
-            return False
-
         for target in launch_targets:
-            print("DEBUG -> Launching:", target)
+            safe_log("DEBUG -> Launching:", target)
             if target.startswith("http"):
                 webbrowser.open(target)
                 return True
@@ -89,11 +50,88 @@ def open_app(app_name):
             except Exception:
                 continue
 
-        print(f"Could not open app: {app_name}")
+        # Last resort: try os.startfile with the bare name — handles
+        # Windows Store apps, URI protocols (e.g. "spotify:"), and
+        # apps registered in PATH that the explicit list missed.
+        try:
+            safe_log("DEBUG -> Last-resort startfile:", app_name)
+            os.startfile(app_name)
+            return True
+        except Exception:
+            pass
+
+        safe_log(f"Could not open app: {app_name}")
         return False
     except Exception:
-        print(f"Could not open app: {app_name}")
+        safe_log(f"Could not open app: {app_name}")
         return False
+
+
+def close_app(app_name):
+    """Kill a running application by process name using taskkill."""
+    app_name = (app_name or "").strip().lower()
+    if not app_name:
+        return False
+
+    process = PROCESS_MAP.get(app_name, f"{app_name}.exe")
+
+    try:
+        result = subprocess.run(
+            ["taskkill", "/IM", process, "/F"],
+            capture_output=True, text=True, timeout=5,
+        )
+        if result.returncode == 0:
+            safe_log(f"DEBUG -> Closed {process}")
+            return True
+        safe_log(f"DEBUG -> taskkill failed for {process}:", result.stderr.strip())
+        return False
+    except Exception as e:
+        safe_log(f"DEBUG -> close_app error:", e)
+        return False
+
+
+def set_volume(action):
+    """Control system volume: up, down, or mute using Windows key simulation."""
+    try:
+        VK_VOLUME_UP = 0xAF
+        VK_VOLUME_DOWN = 0xAE
+        VK_VOLUME_MUTE = 0xAD
+        KEYEVENTF_KEYUP = 0x0002
+
+        key_map = {
+            "up": VK_VOLUME_UP,
+            "down": VK_VOLUME_DOWN,
+            "mute": VK_VOLUME_MUTE,
+        }
+        vk = key_map.get(action)
+        if vk is None:
+            return f"Unknown volume action: {action}"
+
+        # Press 3 times for up/down to make the change noticeable
+        presses = 3 if action in ("up", "down") else 1
+        for _ in range(presses):
+            ctypes.windll.user32.keybd_event(vk, 0, 0, 0)
+            ctypes.windll.user32.keybd_event(vk, 0, KEYEVENTF_KEYUP, 0)
+
+        safe_log(f"DEBUG -> Volume {action}")
+        return f"Volume {action}"
+    except Exception as e:
+        safe_log("DEBUG -> set_volume error:", e)
+        return f"Volume control failed: {e}"
+
+
+def take_screenshot():
+    """Capture and save a screenshot, return the file path."""
+    try:
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        path = os.path.join(os.path.dirname(os.path.dirname(__file__)), f"screenshot_{ts}.png")
+        shot = pyautogui.screenshot()
+        shot.save(path)
+        safe_log(f"DEBUG -> Screenshot saved: {path}")
+        return path
+    except Exception as e:
+        safe_log("DEBUG -> take_screenshot error:", e)
+        return None
 
 
 def search_google(query):
@@ -108,27 +146,112 @@ def play_youtube(query):
     webbrowser.open(f"https://www.youtube.com/results?search_query={query}")
 
 
+# ---------------------------------------------------------------------------
+# Playwright-based YouTube automation
+# ---------------------------------------------------------------------------
+
+def _try_click_video(page):
+    """Try clicking one of the first few real video results on a YT results page."""
+    # YouTube's web-component selectors (a#video-title) are invisible to
+    # Playwright's DOM queries.  Standard href selectors work reliably.
+    loc = page.locator('a[href^="/watch"]')
+    try:
+        loc.first.wait_for(state="attached", timeout=6000)
+        count = loc.count()
+    except Exception:
+        return False
+
+    for i in range(min(count, 8)):
+        try:
+            item = loc.nth(i)
+            href = item.get_attribute("href", timeout=2000) or ""
+            # Skip Google‑Ads bounce links that also contain /watch
+            if "googleadservices" in href or "googlesyndication" in href:
+                continue
+            if not href.startswith("/watch"):
+                continue
+            item.scroll_into_view_if_needed(timeout=2000)
+            item.click(timeout=4000)
+            return True
+        except Exception:
+            continue
+    return False
+
+
 def play_youtube_automated(query):
+    """Playwright-powered YouTube automation.
+
+    Returns:
+    - "success" when automation opens a video
+    - "failed" when automation cannot complete
+
+    The caller (execution layer) owns fallback to play_youtube().
+    """
     query = query.strip()
     if query.lower().startswith("play "):
         query = query[5:].strip()
 
-    try:
-        print(f"Automating on YouTube: {query}")
-        driver = get_driver()
-        if driver is None:
-            raise RuntimeError("Selenium driver is not available")
+    safe_log(f"Automating on YouTube: {query}")
 
-        driver.get("https://www.youtube.com")
-        wait = WebDriverWait(driver, 6)
-        search_bar = wait.until(EC.presence_of_element_located((By.NAME, "search_query")))
-        search_bar.clear()
-        search_bar.send_keys(query)
-        search_bar.send_keys(Keys.ENTER)
+    if not query:
+        safe_log("DEBUG -> automation skipped: empty query")
+        return "failed"
 
-        first_video = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "a#video-title")))
-        first_video.click()
-        print("DEBUG -> Opened first video with Selenium")
-    except Exception as e:
-        print(f"DEBUG -> Selenium fallback to fast mode: {e}")
-        play_youtube(query)
+    if not _PW_OK:
+        safe_log("DEBUG -> Playwright not available, skipping automation")
+        return "failed"
+
+    restarted = False
+    for attempt in range(2):
+        if attempt == 1 and not restarted:
+            break
+        force = attempt == 1
+
+        browser = get_browser(force_restart=force)
+        if browser is None:
+            safe_log("DEBUG -> browser not available")
+            if not restarted:
+                restarted = True
+                continue
+            return "failed"
+
+        if not is_browser_alive():
+            safe_log("DEBUG -> browser session is dead, restarting")
+            restarted = True
+            continue
+
+        page = None
+        try:
+            page = new_page("https://www.youtube.com")
+            if page is None:
+                raise RuntimeError("could not open YouTube page")
+
+            wait_ready(page, timeout_ms=8000)
+
+            search_box = page.locator('input[name="search_query"]')
+            search_box.fill(query, timeout=5000)
+            search_box.press("Enter")
+
+            page.wait_for_load_state("domcontentloaded", timeout=10000)
+            wait_ready(page, timeout_ms=8000)
+
+            if _try_click_video(page):
+                safe_log("DEBUG -> Opened video with Playwright")
+                return "success"
+
+            safe_log("DEBUG -> Playwright could not click any result")
+            return "failed"
+
+        except Exception as e:
+            safe_log("DEBUG -> Playwright automation error:", e)
+            if page:
+                try:
+                    page.close()
+                except Exception:
+                    pass
+            if not restarted:
+                restarted = True
+                continue
+            return "failed"
+
+    return "failed"

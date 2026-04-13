@@ -11,9 +11,6 @@ _DEFAULT_MODEL = "gemini-2.5-flash"
 _DEFAULT_FALLBACKS = [
     "gemini-2.5-flash",
     "gemini-2.0-flash",
-    "gemini-2.0-flash-lite",
-    "gemini-1.5-flash",
-    "gemini-1.5-flash-8b",
 ]
 
 
@@ -36,7 +33,7 @@ def _model_chain():
 def ask_gemini(prompt):
     if not API_KEY:
         print("ERROR in Gemini: GEMINI_API_KEY is not set")
-        return "Sorry, I had trouble thinking right now"
+        return "Brain's offline. API key missing."
 
     headers = {
         "Content-Type": "application/json",
@@ -62,7 +59,7 @@ def ask_gemini(prompt):
         )
         try:
             print("DEBUG -> Gemini trying model:", model)
-            response = requests.post(url, headers=headers, json=data, timeout=120)
+            response = requests.post(url, headers=headers, json=data, timeout=10)
             last_status = response.status_code
 
             if response.status_code in (404, 429):
@@ -90,7 +87,8 @@ def ask_gemini(prompt):
 
             candidates = result.get("candidates") or []
             if not candidates:
-                raise RuntimeError(f"No candidates in response: {result!r}")
+                print(f"DEBUG -> Gemini {model}: empty candidates, fast-failing")
+                return "Couldn't come up with anything."
 
             text = candidates[0]["content"]["parts"][0]["text"]
             print("DEBUG -> Gemini response:", text)
@@ -99,7 +97,7 @@ def ask_gemini(prompt):
 
         except requests.RequestException as e:
             print("ERROR in Gemini (network):", str(e))
-            return "Sorry, I had trouble thinking right now"
+            return "Network's down. Can't think right now."
 
     if last_status == 429:
         msg = (
@@ -111,4 +109,4 @@ def ask_gemini(prompt):
         return msg
 
     print("ERROR in Gemini: all models failed.", last_detail)
-    return "Sorry, I had trouble thinking right now"
+    return "Brain glitch. Try again."

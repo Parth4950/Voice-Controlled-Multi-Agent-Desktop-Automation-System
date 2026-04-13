@@ -1,5 +1,26 @@
 import re
 
+_PLAY_PREFIX_RE = re.compile(
+    r"^play(?:\s+me)?(?:\s+(?:any|a|the|some))?\s*(.+)$",
+    re.I,
+)
+
+
+def _extract_play_query(command: str) -> str:
+    """Turn 'play me any youtube video' into a sensible YouTube search string."""
+    c = command.strip().lower()
+    m = _PLAY_PREFIX_RE.match(c)
+    q = m.group(1).strip() if m else c.replace("play", "", 1).strip()
+    q = re.sub(r"\s+on\s+youtube\s*$", "", q)
+    q = re.sub(r"\s+for\s+me\s*$", "", q)
+    # "youtube lofi mix" -> "lofi mix"; keep "youtube video" (do not reduce to "video")
+    m2 = re.match(r"^youtube\s+(.+)$", q)
+    if m2:
+        rest = m2.group(1).strip()
+        if len(rest) >= 3 and rest.lower() not in ("video", "videos", "short", "shorts"):
+            q = rest
+    return q.strip()
+
 
 def _extract_after(command, keyword):
     """Return everything after the first occurrence of keyword."""
@@ -77,6 +98,19 @@ def route_command(command: str):
         if app_name:
             return ("close_app", {"app": app_name})
 
+    # --- Open YouTube and play (compound — must beat generic open) ---
+    yt_play = re.match(
+        r"^(?:open|launch|start|run)\s+youtube\s+and\s+play\s*(.*)$",
+        command,
+    )
+    if yt_play:
+        tail = (yt_play.group(1) or "").strip()
+        query = _extract_play_query("play " + tail) if tail else "music"
+        if not query:
+            query = "music"
+        print("DEBUG -> Compound open YouTube + play, query:", query)
+        return ("play_media_advanced", {"query": query})
+
     # --- Open app (+ aliases: launch, start, run) ---
     open_match = re.match(r"^(?:open|launch|start|run)\s+(.+)$", command)
     if open_match:
@@ -120,10 +154,10 @@ def route_command(command: str):
         return ("web_scroll", {"direction": scroll_match.group(1)})
 
     # --- Play ---
-    if "play" in command:
-        cleaned_query = command.replace("play", "", 1).strip()
+    if re.match(r"^play\b", command):
+        cleaned_query = _extract_play_query(command)
         cleaned_query = cleaned_query.replace("on youtube", "").strip()
-        if cleaned_query in ("first video", "the first video"):
+        if cleaned_query in ("first video", "the first video", ""):
             return ("unknown", {})
         if any(keyword in command for keyword in automation_keywords):
             return ("play_media_advanced", {"query": cleaned_query})

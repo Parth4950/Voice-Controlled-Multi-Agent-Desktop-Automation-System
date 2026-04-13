@@ -1,6 +1,8 @@
 import sys
 import time
 
+from ui.event_bus import emit_event
+
 
 def safe_log(*parts):
     """Print to console without ever raising — handles Windows cp1252 encoding issues."""
@@ -21,5 +23,6 @@ def log_timing(label, start_ms):
     try:
         elapsed = now_ms() - int(start_ms)
         safe_log(f"TIMING -> {label}: {elapsed}ms")
+        emit_event("TIMING", {"label": label, "elapsed_ms": elapsed})
     except Exception:
         pass

@@ -126,7 +126,16 @@ def execute(intent, params):
         open_website(params["url"])
     elif intent == "play_media":
         print("DEBUG -> Media query:", params["query"])
-        play_youtube(params["query"])
+        status = "failed"
+        try:
+            result = play_youtube_advanced(params["query"])
+            status = result if result in {"success", "failed"} else "failed"
+        except Exception as e:
+            safe_log("DEBUG -> play_media automation failed:", e)
+            status = "failed"
+        if status != "success":
+            safe_log("DEBUG -> play_media falling back to YouTube search URL")
+            play_youtube(params["query"])
     elif intent == "navigate":
         url = params.get("url", "")
         safe_log("DEBUG -> Navigating to:", url)

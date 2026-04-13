@@ -5,6 +5,8 @@ import queue
 
 import pyttsx3
 from tools.log import safe_log
+from ui.event_bus import emit_event
+from ui.state import is_muted
 
 _CONFIG_PATH = os.path.join(os.path.dirname(__file__), "voice_config.json")
 
@@ -64,6 +66,11 @@ def _tts_worker():
             _speech_queue.task_done()
             break
         try:
+            if is_muted():
+                emit_event("SPEAK_END", {})
+                continue
+            speak_start = __import__("time").perf_counter()
+            emit_event("SPEAK_START", {})
             engine = pyttsx3.init()
             if _VOICE_ID:
                 engine.setProperty("voice", _VOICE_ID)
@@ -71,9 +78,12 @@ def _tts_worker():
             engine.runAndWait()
             engine.stop()
             del engine
+            elapsed_ms = int((__import__("time").perf_counter() - speak_start) * 1000)
+            emit_event("TIMING", {"label": "speak_time", "elapsed_ms": elapsed_ms})
         except Exception as e:
             safe_log("DEBUG -> TTS playback failed:", e)
         finally:
+            emit_event("SPEAK_END", {})
             _speech_queue.task_done()
 
 

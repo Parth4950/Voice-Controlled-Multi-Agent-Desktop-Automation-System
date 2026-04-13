@@ -22,6 +22,22 @@ class RouterSmokeTest(unittest.TestCase):
         self.assertEqual(route_command("open chrome")[0], "open_app")
         self.assertEqual(route_command("play lofi")[0], "play_media")
 
+    def test_open_youtube_and_play_compound(self):
+        intent, params = route_command("open youtube and play me a song")
+        self.assertEqual(intent, "play_media_advanced")
+        self.assertIn("query", params)
+        self.assertTrue(len(params["query"]) > 0)
+
+    def test_play_me_any_youtube_video_query(self):
+        intent, params = route_command("play me any youtube video")
+        self.assertEqual(intent, "play_media")
+        self.assertEqual(params["query"], "youtube video")
+
+    def test_play_that_youtube_video_for_me_query(self):
+        intent, params = route_command("play that youtube video for me")
+        self.assertEqual(intent, "play_media")
+        self.assertEqual(params["query"], "that youtube video")
+
     def test_two_word_commands_route(self):
         self.assertEqual(route_command("open spotify")[0], "open_app")
         self.assertEqual(route_command("open whatsapp")[0], "open_app")
@@ -673,6 +689,67 @@ class VoiceParameterTest(unittest.TestCase):
     def test_ambient_duration(self):
         from voice.input import AMBIENT_DURATION
         self.assertEqual(AMBIENT_DURATION, 1.2)
+
+    def test_wake_timeout(self):
+        from voice.input import WAKE_TIMEOUT
+        self.assertEqual(WAKE_TIMEOUT, 3)
+
+    def test_wake_phrase_limit(self):
+        from voice.input import WAKE_PHRASE_LIMIT
+        self.assertEqual(WAKE_PHRASE_LIMIT, 4)
+
+
+class WakeListenerTest(unittest.TestCase):
+    def test_listen_for_wake_word_importable(self):
+        from voice.input import listen_for_wake_word
+        self.assertTrue(callable(listen_for_wake_word))
+
+    def test_wake_listener_returns_none_on_timeout(self):
+        recognizer = mock.Mock()
+        recognizer.listen.side_effect = voice_input.sr.WaitTimeoutError()
+        recognizer.adjust_for_ambient_noise.return_value = None
+
+        mic_ctx = mock.Mock()
+        mic_ctx.__enter__ = mock.Mock(return_value=mock.Mock())
+        mic_ctx.__exit__ = mock.Mock(return_value=False)
+
+        with mock.patch.object(voice_input, "_recognizer", recognizer), \
+             mock.patch.object(voice_input, "_calibrated", True), \
+             mock.patch.object(voice_input.sr, "Microphone", return_value=mic_ctx):
+            result = voice_input.listen_for_wake_word()
+            self.assertIsNone(result)
+
+    def test_wake_listener_returns_none_for_non_wake_word(self):
+        recognizer = mock.Mock()
+        recognizer.adjust_for_ambient_noise.return_value = None
+        recognizer.listen.return_value = mock.Mock()
+        recognizer.recognize_google = mock.Mock(return_value="open chrome")
+
+        mic_ctx = mock.Mock()
+        mic_ctx.__enter__ = mock.Mock(return_value=mock.Mock())
+        mic_ctx.__exit__ = mock.Mock(return_value=False)
+
+        with mock.patch.object(voice_input, "_recognizer", recognizer), \
+             mock.patch.object(voice_input, "_calibrated", True), \
+             mock.patch.object(voice_input.sr, "Microphone", return_value=mic_ctx):
+            result = voice_input.listen_for_wake_word()
+            self.assertIsNone(result)
+
+    def test_wake_listener_returns_text_for_wake_word(self):
+        recognizer = mock.Mock()
+        recognizer.adjust_for_ambient_noise.return_value = None
+        recognizer.listen.return_value = mock.Mock()
+        recognizer.recognize_google = mock.Mock(return_value="Hey Bro")
+
+        mic_ctx = mock.Mock()
+        mic_ctx.__enter__ = mock.Mock(return_value=mock.Mock())
+        mic_ctx.__exit__ = mock.Mock(return_value=False)
+
+        with mock.patch.object(voice_input, "_recognizer", recognizer), \
+             mock.patch.object(voice_input, "_calibrated", True), \
+             mock.patch.object(voice_input.sr, "Microphone", return_value=mic_ctx):
+            result = voice_input.listen_for_wake_word()
+            self.assertEqual(result, "hey bro")
 
 
 # ---------------------------------------------------------------------------

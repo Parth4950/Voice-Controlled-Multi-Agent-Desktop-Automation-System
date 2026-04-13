@@ -35,7 +35,7 @@ def execute(intent, params):
         return value
     elif intent == "open_app":
         print("DEBUG -> App to open:", params["app"])
-        open_app(params["app"])
+        return open_app(params["app"])
     elif intent == "search":
         search_google(params["query"])
     elif intent == "open_website":

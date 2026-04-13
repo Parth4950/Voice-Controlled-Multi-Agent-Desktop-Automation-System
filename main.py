@@ -1,5 +1,8 @@
 from agents.router import route_command
 from agents.execution import execute
+from agents.planner import plan_task
+from agents.dispatcher import dispatch
+import time
 from voice.input import listen_command
 from voice.output import speak
 
@@ -9,72 +12,81 @@ def is_simple_command(command):
     return any(command.startswith(k) for k in keywords)
 
 
-def planner(command):
-    return execute("analyze_context", {"query": command})
+session_active = False
 
 
 while True:
-    typed_mode = False
-    command = listen_command()
-    if not command:
-        typed = input("Type command (or press Enter to keep listening): ").strip().lower()
-        if not typed:
+    try:
+        try:
+            command = listen_command()
+        except Exception:
             continue
-        command = typed
-        typed_mode = True
 
-    print(f"Heard: {command}")
+        if not command:
+            continue
 
-    if not typed_mode and "bro" not in command:
+        print("DEBUG -> Heard command:", command)
+
+        if not session_active:
+            if "hey bro" in command.lower():
+                session_active = True
+                speak("Hey Parth, what can I do for you today?")
+            continue
+
+        if session_active:
+            if not command:
+                continue
+            command = command.lower().strip()
+
+            # EXIT
+            if "bye" in command:
+                speak("Alright, see you!")
+                session_active = False
+                continue
+
+            # IGNORE SHORT NOISE
+            if len(command.split()) < 3:
+                continue
+
+            interaction_keywords = ("click", "first", "control", "interact", "automate", "auto")
+            has_interaction_step = any(keyword in command for keyword in interaction_keywords)
+
+            print("DEBUG -> Checking fast path")
+
+            # FAST PATH
+            if is_simple_command(command):
+                print("DEBUG -> Fast path triggered")
+                intent, params = route_command(command)
+                if intent == "play_media" and has_interaction_step:
+                    intent = "play_media_advanced"
+                execute(intent, params)
+                continue
+
+            # AI PATH
+            print("DEBUG -> Going to AI path")
+            agent = plan_task(command)
+            valid_agents = {
+                "code_agent",
+                "web_agent",
+                "system_agent",
+                "automation_agent",
+                "memory_agent",
+            }
+            if agent not in valid_agents:
+                agent = "web_agent"
+
+            print("DEBUG -> Selected agent:", agent)
+
+            print("DEBUG -> Dispatching to agent")
+            response = dispatch(agent, command)
+
+            print("DEBUG -> Response received:", response)
+
+            if response:
+                print("Bruh:", response)
+                speak(response[:300])
+
+    except Exception:
         continue
-
-    if "bro" in command:
-        command = command.replace("bro", "", 1).strip()
-    if not command:
-        continue
-
-    commands_list = command.split(" and ")
-    interaction_keywords = ("click", "first", "control", "interact", "automate", "auto")
-    has_interaction_step = any(
-        any(keyword in cmd for keyword in interaction_keywords) for cmd in commands_list
-    )
-
-    for cmd in commands_list:
-        if not is_simple_command(cmd):
-            ai_response = planner(cmd)
-            if ai_response:
-                print(ai_response)
-                speak(ai_response)
-            else:
-                speak("I could not analyze that right now")
-            continue
-
-        intent, params = route_command(cmd)
-
-        if intent == "play_media" and has_interaction_step:
-            intent = "play_media_advanced"
-
-        if intent == "unknown" and any(keyword in cmd for keyword in interaction_keywords):
-            continue
-
-        if intent == "unknown":
-            print(f"Bruh, I didn’t understand: {cmd}")
-            speak("Bruh, I didn’t understand that")
-        else:
-            result = execute(intent, params)
-            if intent == "remember":
-                speak("Got it, I’ll remember that")
-            elif intent == "recall":
-                key = params["key"]
-                if result:
-                    speak(f"Your {key} is {result}")
-                else:
-                    speak("I don’t know that yet")
-            elif intent == "open_app":
-                speak("Opening application")
-            elif intent == "search":
-                speak("Searching now")
-            elif intent == "play_media":
-                speak("Playing on YouTube")
-            elif intent == "play_media_advanced":
-                speak("Playing and controlling video")
+    finally:
+        time.sleep(0.5)

@@ -59,27 +59,41 @@ def open_app(app_name):
     try:
         app_name = app_name.lower().strip()
         mapped = APP_MAP.get(app_name)
-        if mapped is None:
+        fallbacks = APP_FALLBACKS.get(app_name, [])
+
+        launch_targets = []
+        if mapped:
+            launch_targets.append(mapped)
+        launch_targets.extend(fallbacks)
+
+        if not launch_targets:
             print("Bruh, I don’t know this app yet")
-            return
+            return False
 
-        print("DEBUG -> Launching:", mapped)
+        for target in launch_targets:
+            print("DEBUG -> Launching:", target)
+            if target.startswith("http"):
+                webbrowser.open(target)
+                return True
 
-        if mapped.startswith("http"):
-            webbrowser.open(mapped)
-            return
+            is_full_path = os.path.isabs(target) or ("\\" in target) or ("/" in target)
+            if is_full_path:
+                if os.path.exists(target):
+                    os.startfile(target)
+                    return True
+                continue
 
-        is_full_path = os.path.isabs(mapped) or ("\\" in mapped) or ("/" in mapped)
-        if is_full_path:
-            if os.path.exists(mapped):
-                os.startfile(mapped)
-            else:
-                print("Bruh, path not found:", mapped)
-            return
+            try:
+                subprocess.Popen(target, shell=True)
+                return True
+            except Exception:
+                continue
 
-        subprocess.Popen(mapped, shell=True)
+        print(f"Could not open app: {app_name}")
+        return False
     except Exception:
         print(f"Could not open app: {app_name}")
+        return False
 
 
 def search_google(query):

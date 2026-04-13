@@ -1,4 +1,4 @@
-google-generativeai
+requests
 python-dotenv
 pyautogui
 pytesseract

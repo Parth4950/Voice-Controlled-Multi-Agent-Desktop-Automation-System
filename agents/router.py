@@ -28,6 +28,16 @@ def _extract_after(command, keyword):
     return command[idx + len(keyword):].strip()
 
 
+def _split_tail_in_location(tail: str):
+    """Split ``name in location`` from router tail (last `` in `` wins)."""
+    if " in " in tail:
+        left, right = tail.rsplit(" in ", 1)
+        left, right = left.strip(), right.strip()
+        if left and right:
+            return left, right
+    return tail.strip(), None
+
+
 def route_command(command: str):
     command = command.strip().lower()
 
@@ -111,6 +121,18 @@ def route_command(command: str):
         print("DEBUG -> Compound open YouTube + play, query:", query)
         return ("play_media_advanced", {"query": query})
 
+    # --- Open folder / file in Explorer (before generic "open <app>") ---
+    open_folder_m = re.match(r"^open\s+folder\s+(.+)$", command)
+    if open_folder_m:
+        p = open_folder_m.group(1).strip()
+        if p:
+            return ("fs_open", {"path": p})
+    open_file_m = re.match(r"^open\s+file\s+(.+)$", command)
+    if open_file_m:
+        p = open_file_m.group(1).strip()
+        if p:
+            return ("fs_open", {"path": p})
+
     # --- Open app (+ aliases: launch, start, run) ---
     open_match = re.match(r"^(?:open|launch|start|run)\s+(.+)$", command)
     if open_match:
@@ -152,6 +174,101 @@ def route_command(command: str):
     scroll_match = re.search(r"\bscroll\s+(up|down)\b", command)
     if scroll_match:
         return ("web_scroll", {"direction": scroll_match.group(1)})
+
+    # --- Copy / move / duplicate (rsplit on " to ") ---
+    if command.startswith("copy "):
+        rest = command[5:].strip()
+        if " to " in rest:
+            a, b = rest.rsplit(" to ", 1)
+            a, b = a.strip(), b.strip()
+            if a and b:
+                return ("fs_copy", {"src": a, "dst": b})
+    if command.startswith("move "):
+        rest = command[5:].strip()
+        if " to " in rest:
+            a, b = rest.rsplit(" to ", 1)
+            a, b = a.strip(), b.strip()
+            if a and b:
+                return ("fs_move", {"src": a, "dst": b})
+    if command.startswith("cut "):
+        rest = command[4:].strip()
+        if " to " in rest:
+            a, b = rest.rsplit(" to ", 1)
+            a, b = a.strip(), b.strip()
+            if a and b:
+                return ("fs_move", {"src": a, "dst": b})
+    if command.startswith("duplicate "):
+        rest = command[10:].strip()
+        if " to " in rest:
+            a, b = rest.rsplit(" to ", 1)
+            a, b = a.strip(), b.strip()
+            if a and b:
+                return ("fs_copy", {"src": a, "dst": b})
+
+    if command.startswith("rename "):
+        rest = command[7:].strip()
+        if " to " in rest:
+            a, b = rest.rsplit(" to ", 1)
+            a, b = a.strip(), b.strip()
+            if a and b:
+                return ("fs_rename", {"src": a, "dst": b})
+
+    del_m = re.match(r"^(?:delete|remove|trash)\s+(.+)$", command)
+    if del_m:
+        p = del_m.group(1).strip()
+        if p:
+            return ("fs_delete", {"path": p})
+
+    # --- Create folder / file (workspace + Explorer) ---
+    _folder_create = re.match(
+        r"^(?:create|make)(?:\s+a)?(?:\s+new)?\s+folder(?:\s+(?:named|name|called))?\s+(.+)$",
+        command,
+    )
+    if _folder_create:
+        tail = _folder_create.group(1).strip()
+        if tail:
+            name, loc = _split_tail_in_location(tail)
+            if name:
+                params = {"name": name}
+                if loc:
+                    params["parent"] = loc
+                return ("create_folder", params)
+
+    _file_create = re.match(
+        r"^(?:create|make)(?:\s+a)?(?:\s+new)?\s+file(?:\s+(?:named|name|called))?\s+(.+)$",
+        command,
+    )
+    if _file_create:
+        tail = _file_create.group(1).strip()
+        if tail:
+            name, loc = _split_tail_in_location(tail)
+            if name:
+                params = {"name": name}
+                if loc:
+                    params["parent"] = loc
+                return ("create_file", params)
+
+    _new_folder = re.match(r"^new\s+folder\s+(.+)$", command)
+    if _new_folder:
+        tail = _new_folder.group(1).strip()
+        if tail:
+            name, loc = _split_tail_in_location(tail)
+            if name:
+                params = {"name": name}
+                if loc:
+                    params["parent"] = loc
+                return ("create_folder", params)
+
+    _new_file = re.match(r"^new\s+file\s+(.+)$", command)
+    if _new_file:
+        tail = _new_file.group(1).strip()
+        if tail:
+            name, loc = _split_tail_in_location(tail)
+            if name:
+                params = {"name": name}
+                if loc:
+                    params["parent"] = loc
+                return ("create_file", params)
 
     # --- Play ---
     if re.match(r"^play\b", command):

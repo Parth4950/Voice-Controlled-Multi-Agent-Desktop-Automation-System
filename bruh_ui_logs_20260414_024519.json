@@ -1,0 +1,46 @@
+{
+  "exported_at": "2026-04-14T02:45:19.861454",
+  "state": "IDLE",
+  "session_active": false,
+  "muted": false,
+  "transcripts": [],
+  "timings": {
+    "speak_time": 2405,
+    "wake_to_first_response": 3005,
+    "router_time": 0,
+    "command_to_action_start": 7768,
+    "fast_command_total": 9807,
+    "screen_ocr": 2426,
+    "screen_gemini": 5340,
+    "planner_time": 3898,
+    "dispatch_time": 10680,
+    "command_to_voice_output": 16637,
+    "ai_command_total": 16638
+  },
+  "events": [
+    {
+      "ts": 1776114795.2214766,
+      "text": "Muted"
+    },
+    {
+      "ts": 1776114797.1538706,
+      "text": "Unmuted"
+    },
+    {
+      "ts": 1776114799.1723475,
+      "text": "PTT requested"
+    },
+    {
+      "ts": 1776114801.0556724,
+      "text": "PTT requested"
+    },
+    {
+      "ts": 1776114911.7098439,
+      "text": "Wake disabled"
+    },
+    {
+      "ts": 1776114913.9138927,
+      "text": "Restart requested"
+    }
+  ]
+}

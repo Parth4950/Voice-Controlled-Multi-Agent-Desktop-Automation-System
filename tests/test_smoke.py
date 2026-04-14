@@ -193,6 +193,89 @@ class RouterWebAutomationTest(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
+# Router — create folder / file
+# ---------------------------------------------------------------------------
+
+
+class RouterFilesystemTest(unittest.TestCase):
+    def test_create_folder_name_phrase(self):
+        intent, params = route_command("create a folder name ghost")
+        self.assertEqual(intent, "create_folder")
+        self.assertEqual(params["name"], "ghost")
+
+    def test_create_new_file_name_phrase(self):
+        intent, params = route_command("create a new file name download")
+        self.assertEqual(intent, "create_file")
+        self.assertEqual(params["name"], "download")
+
+    def test_make_folder_called(self):
+        intent, params = route_command("make a folder called java stuff")
+        self.assertEqual(intent, "create_folder")
+        self.assertEqual(params["name"], "java stuff")
+
+    def test_new_folder(self):
+        intent, params = route_command("new folder backups")
+        self.assertEqual(intent, "create_folder")
+        self.assertEqual(params["name"], "backups")
+
+    def test_new_file(self):
+        intent, params = route_command("new file notes")
+        self.assertEqual(intent, "create_file")
+        self.assertEqual(params["name"], "notes")
+
+    def test_create_folder_in_location(self):
+        intent, params = route_command("create folder reports in desktop")
+        self.assertEqual(intent, "create_folder")
+        self.assertEqual(params["name"], "reports")
+        self.assertEqual(params["parent"], "desktop")
+
+    def test_copy_to(self):
+        intent, params = route_command("copy ghost to desktop")
+        self.assertEqual(intent, "fs_copy")
+        self.assertEqual(params["src"], "ghost")
+        self.assertEqual(params["dst"], "desktop")
+
+    def test_move_to(self):
+        intent, params = route_command("move ghost to downloads")
+        self.assertEqual(intent, "fs_move")
+        self.assertEqual(params["src"], "ghost")
+        self.assertEqual(params["dst"], "downloads")
+
+    def test_cut_to(self):
+        intent, params = route_command("cut ghost to desktop")
+        self.assertEqual(intent, "fs_move")
+
+    def test_rename_to(self):
+        intent, params = route_command("rename ghost to spook")
+        self.assertEqual(intent, "fs_rename")
+        self.assertEqual(params["src"], "ghost")
+        self.assertEqual(params["dst"], "spook")
+
+    def test_delete_path(self):
+        intent, params = route_command("delete ghost")
+        self.assertEqual(intent, "fs_delete")
+        self.assertEqual(params["path"], "ghost")
+
+    def test_delete_the_folder_phrase(self):
+        intent, params = route_command("delete the folder ghost")
+        self.assertEqual(intent, "fs_delete")
+        self.assertEqual(params["path"], "the folder ghost")
+
+    def test_remove_path(self):
+        intent, params = route_command("remove ghost")
+        self.assertEqual(intent, "fs_delete")
+
+    def test_open_folder_not_open_app(self):
+        intent, params = route_command("open folder desktop")
+        self.assertEqual(intent, "fs_open")
+        self.assertEqual(params["path"], "desktop")
+
+    def test_open_file_intent(self):
+        intent, params = route_command("open file notes.txt")
+        self.assertEqual(intent, "fs_open")
+
+
+# ---------------------------------------------------------------------------
 # Execution — close / volume / screenshot
 # ---------------------------------------------------------------------------
 
@@ -266,6 +349,54 @@ class WebAutomationExecutionTest(unittest.TestCase):
             self.assertEqual(result, "Scrolled down")
 
 
+class ExecutionFilesystemTest(unittest.TestCase):
+    def test_create_folder_delegates(self):
+        with mock.patch(
+            "agents.execution.fs_create_folder",
+            return_value="Folder created at C:\\fake\\ghost",
+        ):
+            result = execute("create_folder", {"name": "ghost"})
+            self.assertIn("Folder created", result)
+
+    def test_create_file_delegates(self):
+        with mock.patch(
+            "agents.execution.fs_create_file",
+            return_value="File created at C:\\fake\\a.txt",
+        ):
+            result = execute("create_file", {"name": "a"})
+            self.assertIn("File created", result)
+
+    def test_create_folder_empty_name(self):
+        with mock.patch("agents.execution.fs_create_folder") as mock_cf:
+            result = execute("create_folder", {"name": "   "})
+            self.assertIn("Need a folder name", result)
+            mock_cf.assert_not_called()
+
+    def test_create_file_empty_name(self):
+        with mock.patch("agents.execution.fs_create_file") as mock_f:
+            result = execute("create_file", {"name": ""})
+            self.assertIn("Need a file name", result)
+            mock_f.assert_not_called()
+
+    def test_fs_copy(self):
+        with mock.patch("agents.execution.fs_copy", return_value="Copied to X"):
+            result = execute("fs_copy", {"src": "a", "dst": "b"})
+            self.assertEqual(result, "Copied to X")
+
+    def test_fs_delete(self):
+        with mock.patch("agents.execution.fs_delete", return_value="Deleted X"):
+            result = execute("fs_delete", {"path": "ghost"})
+            self.assertEqual(result, "Deleted X")
+
+
+class FilesystemPathNormalizationTest(unittest.TestCase):
+    def test_normalize_spoken_folder_prefix(self):
+        from tools.filesystem_tools import _normalize_path_spec_text
+
+        self.assertEqual(_normalize_path_spec_text("the folder ghost"), "ghost")
+        self.assertEqual(_normalize_path_spec_text("folder reports"), "reports")
+
+
 # ---------------------------------------------------------------------------
 # Fast-path feedback
 # ---------------------------------------------------------------------------
@@ -289,6 +420,16 @@ class FastPathFeedbackTest(unittest.TestCase):
                 return str(result)[:300] if result else None
             if intent in ("navigate", "web_click", "web_type", "web_scroll"):
                 return str(result) if result else None
+            if intent in (
+                "create_folder",
+                "create_file",
+                "fs_copy",
+                "fs_move",
+                "fs_delete",
+                "fs_rename",
+                "fs_open",
+            ):
+                return str(result)[:300] if result else None
             return None
         return _fast_path_feedback
 
@@ -323,6 +464,17 @@ class FastPathFeedbackTest(unittest.TestCase):
     def test_navigate_feedback(self):
         fb = self._get_feedback()
         self.assertEqual(fb("navigate", "Navigated"), "Navigated")
+
+    def test_create_folder_feedback(self):
+        fb = self._get_feedback()
+        msg = "Folder created at C:\\Users\\x\\Documents\\BruhFiles\\ghost"
+        self.assertEqual(fb("create_folder", msg), msg)
+
+    def test_create_file_feedback_truncates(self):
+        fb = self._get_feedback()
+        long_msg = "File created at " + ("x" * 400)
+        out = fb("create_file", long_msg)
+        self.assertEqual(len(out), 300)
 
     def test_search_silent(self):
         fb = self._get_feedback()
@@ -624,6 +776,24 @@ class PlannerConversationHeuristicTest(unittest.TestCase):
         from agents.planner import _looks_like_conversation
         self.assertFalse(_looks_like_conversation("open spotify and play my playlist"))
         self.assertFalse(_looks_like_conversation("search for python tutorials on youtube"))
+
+
+class PlannerShortChatFilesystemTest(unittest.TestCase):
+    def test_create_commands_not_short_chat(self):
+        from agents.planner import _looks_like_short_chat
+
+        self.assertFalse(_looks_like_short_chat("create a folder name ghost"))
+        self.assertFalse(_looks_like_short_chat("create a new file name download"))
+
+    def test_copy_not_short_chat(self):
+        from agents.planner import _looks_like_short_chat
+
+        self.assertFalse(_looks_like_short_chat("copy ghost to desktop"))
+
+    def test_profile_still_short_chat_when_short(self):
+        from agents.planner import _looks_like_short_chat
+
+        self.assertTrue(_looks_like_short_chat("check my profile"))
 
 
 # ---------------------------------------------------------------------------

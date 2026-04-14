@@ -78,6 +78,16 @@ def _fast_path_feedback(intent, result):
         return str(result)[:300] if result else "Couldn't read your screen."
     if intent in ("navigate", "web_click", "web_type", "web_scroll"):
         return str(result) if result else None
+    if intent in (
+        "create_folder",
+        "create_file",
+        "fs_copy",
+        "fs_move",
+        "fs_delete",
+        "fs_rename",
+        "fs_open",
+    ):
+        return str(result)[:300] if result else None
     return None
 
 
@@ -93,6 +103,8 @@ def is_simple_command(command):
         "what is my",
         "go to", "navigate",
         "click", "type", "scroll",
+        "create", "make",
+        "copy", "move", "cut", "delete", "remove", "trash", "rename", "duplicate",
     ]
     screen_triggers = [
         "on my screen", "on screen", "looking at", "this code", "the code",
@@ -101,6 +113,8 @@ def is_simple_command(command):
         "currently on my", "what is on my", "what's on my",
     ]
     if any(command.startswith(k) for k in keywords):
+        return True
+    if command.startswith("new folder ") or command.startswith("new file "):
         return True
     if any(t in command for t in screen_triggers):
         return True
@@ -258,7 +272,21 @@ while True:
                 feedback = _fast_path_feedback(intent, result)
                 if not feedback:
                     feedback = "Done."
-                speak(feedback, max_chars=120)
+                speak(
+                    feedback,
+                    max_chars=260
+                    if intent
+                    in (
+                        "create_folder",
+                        "create_file",
+                        "fs_copy",
+                        "fs_move",
+                        "fs_delete",
+                        "fs_rename",
+                        "fs_open",
+                    )
+                    else 120,
+                )
                 emit_event("AI_RESPONSE", {"text": feedback})
 
                 update_context(command=command, response=feedback)

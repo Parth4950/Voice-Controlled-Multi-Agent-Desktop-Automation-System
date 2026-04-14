@@ -1,106 +1,191 @@
-# Project Bruh — Voice-Controlled Desktop Assistant
+# Project Bruh
 
-A fast, personality-driven Windows desktop assistant that listens for a wake word, routes intent, and executes tasks across apps and the web.
+Windows voice assistant with deterministic command execution, Gemini-backed AI fallback, browser automation, OCR screen understanding, memory, and filesystem management.
 
-## Features
+## Highlights
 
-- **Voice input** with wake-word gating (`hey bro`), ambient noise calibration, idle recovery
-- **Voice output** via `pyttsx3` with configurable voice selection
-- **Deterministic router** for open/launch/search/play/close/volume/screenshot — no AI on the fast path
-- **AI path** via Gemini for general knowledge, code help, and context-aware answers
-- **Bruh personality** baked into all AI responses (sarcastic, direct, helpful)
-- **App control** — open *and close* apps (Chrome, Notepad, Calculator, Spotify, VS Code, etc.)
-- **Volume control** — up, down, mute via voice
-- **Screenshot on demand** — "take a screenshot"
-- **Playwright browser automation** for YouTube with guaranteed direct-URL fallback
-- **Memory** — persistent `remember` / `recall` with fuzzy matching
-- **Bounded context** — last 5 interactions for follow-up awareness
-- **Safe logging** — no Unicode crashes on Windows
-- **Graceful shutdown** — Playwright browser cleaned up on Ctrl+C / exit
-- **Smoke tests** for regression safety
+- Wake-word session flow (`hey bro` to activate, `bye` to end)
+- Fast path for routine commands (no AI latency)
+- AI path for general Q&A and follow-up conversation
+- OCR-based screen/context analysis
+- Browser automation (navigate/click/type/scroll/YouTube flow)
+- Persistent memory (`remember`, `what is my ...`)
+- Filesystem operations (create/open/copy/move/rename/delete)
+- Overlay/event bus integration and timing logs
 
-## Project Structure
+## How It Works
 
-```
-main.py              — voice loop, wake-word handling, routing, execution
+Project Bruh routes each spoken command in two stages:
+
+1. **Fast path** (`agents/router.py` + `agents/execution.py`): regex/keyword intent matching and direct tool execution.
+2. **AI path** (`agents/planner.py` + agents): heuristic routing and Gemini response generation when no deterministic intent applies.
+
+Runtime orchestration is in `main.py`, which manages wake mode, active session loop, speech I/O, context, and cleanup.
+
+## Current Architecture
+
+```text
+main.py
 agents/
-  router.py          — deterministic intent matching
-  planner.py         — AI agent selector
-  dispatcher.py      — agent dispatch
-  execution.py       — intent → tool execution
-  personality.py     — shared Bruh system prompt
-  web_agent.py       — general knowledge via Gemini
-  code_agent.py      — code help via screen OCR + Gemini
-  system_agent.py    — open/close apps
-  automation_agent.py — Playwright YouTube automation
-  memory_agent.py    — remember/recall interface
+  router.py            # deterministic intent parsing
+  execution.py         # intent handlers and tool calls
+  planner.py           # heuristic + Gemini agent selection
+  dispatcher.py        # selected-agent dispatch
+  web_agent.py         # general Q&A/chat
+  code_agent.py        # screen/code-aware responses
+  system_agent.py      # app-launch focused handling
+  automation_agent.py  # browser automation agent
+  memory_agent.py      # memory interactions
+  personality.py       # system prompt/persona
 tools/
-  system_tools.py    — open/close app, search, play, volume, screenshot
-  browser.py         — Playwright lifecycle and page helpers
-  log.py             — safe_log, timing utilities
+  system_tools.py      # apps, volume, screenshot, search/media helpers
+  browser.py           # Playwright helpers/lifecycle
+  filesystem_tools.py  # path parsing + filesystem actions
+  log.py               # safe logging + timing utilities
 voice/
-  input.py           — microphone + Google STT
-  output.py          — pyttsx3 TTS with voice_config.json support
-  voice_selector.py  — interactive voice picker
-memory/
-  memory.py          — JSON key-value store with fuzzy recall
-  context.py         — bounded session context
+  input.py             # microphone + speech recognition
+  output.py            # TTS
+  voice_selector.py    # voice setup helper
 context/
-  screen.py          — screenshot + OCR via pytesseract
+  screen.py            # screenshot + OCR
+memory/
+  memory.py            # persistent key-value memory
+  context.py           # bounded conversation context
+ui/
+  overlay.py, state.py, event_bus.py
 tests/
-  test_smoke.py      — smoke tests
+  test_smoke.py
 ```
+
+## Platform + Requirements
+
+- **OS:** Windows (current implementation uses Windows-specific APIs/commands)
+- **Python:** 3.10+
+- **Mic:** Required for voice input
+- **Gemini API key:** Required for AI-path features
+- **Tesseract OCR:** Required for screen reading/analysis
+- **Playwright Chromium:** Required for browser automation flows
 
 ## Setup
 
-1. **Create a virtual environment:**
-   ```powershell
-   python -m venv venv
-   ```
+1. Create a virtual environment:
 
-2. **Install dependencies:**
-   ```powershell
-   & "c:/Project Bruh/venv/Scripts/pip.exe" install -r requirements.txt
-   ```
+```powershell
+python -m venv venv
+```
 
-3. **Install Playwright browsers:**
-   ```powershell
-   & "c:/Project Bruh/venv/Scripts/playwright.exe" install chromium
-   ```
+2. Install dependencies:
 
-4. **Set your Gemini API key** in a `.env` file:
-   ```
-   GEMINI_API_KEY=your_key_here
-   ```
+```powershell
+.\venv\Scripts\pip.exe install -r requirements.txt
+```
 
-5. **Microphone:** Ensure PyAudio is installed and a microphone is available.
+3. Install Playwright browser:
 
-6. **Tesseract OCR (optional):** Install [Tesseract](https://github.com/tesseract-ocr/tesseract) for screen reading features.
+```powershell
+.\venv\Scripts\playwright.exe install chromium
+```
+
+4. Create `.env` in the project root:
+
+```env
+GEMINI_API_KEY=your_key_here
+```
+
+5. Install Tesseract and verify path in `config.py` (or override via `config.json`).
 
 ## Run
 
 ```powershell
-& "c:/Project Bruh/venv/Scripts/python.exe" "c:/Project Bruh/main.py"
+.\venv\Scripts\python.exe .\main.py
 ```
 
-Say **"hey bro"** to start a session, then give commands like:
-- "open chrome"
-- "search latest news"
-- "play lofi beats"
-- "close notepad"
-- "volume up"
-- "take a screenshot"
-- "remember my favorite color is blue"
-- "what is my favorite color"
-- "bye" to end session
+## Voice Commands (Current)
 
-## Smoke Tests
+### Session
+
+- `hey bro`
+- `bye`
+
+### App/System
+
+- `open chrome`
+- `launch notepad`
+- `close spotify`
+- `volume up` / `volume down` / `mute`
+- `screenshot`
+
+### Browser/Web
+
+- `search python decorators`
+- `go to github.com`
+- `click sign in`
+- `type hello world`
+- `scroll down`
+- `open youtube and play lofi`
+
+### Memory
+
+- `remember my favorite color is blue`
+- `what is my favorite color`
+
+### Screen Context
+
+- `what am i looking at`
+- `what is on my screen`
+- `read my screen`
+
+### Filesystem
+
+- `create a folder name ghost`
+- `create a new file name notes`
+- `open folder desktop`
+- `open file notes.txt`
+- `copy ghost to desktop`
+- `move ghost to downloads`
+- `rename ghost to ghost_backup`
+- `delete ghost`
+- `delete the folder ghost` (spoken filler normalized)
+
+## Filesystem Behavior
+
+- Default create root: `Documents\BruhFiles` (override with `bruh_files_root`)
+- Aliases supported in path parsing: desktop, documents, downloads, pictures, videos, music, bruh files
+- Scope control via `filesystem_scope`:
+  - `home`: user profile + Bruh root
+  - `full`: full machine path access (with safety checks)
+- Safety guards block destructive operations on critical system locations
+
+## Configuration
+
+`config.json` (optional, next to `config.py`) can override defaults. Useful keys:
+
+- `tesseract_cmd`
+- `playwright_user_data_dir`
+- `app_map`, `app_fallbacks`, `process_map`
+- `bruh_files_root`
+- `filesystem_scope`
+
+See `config.json.example` for structure.
+
+## Testing
+
+Run smoke tests:
 
 ```powershell
-& "c:/Project Bruh/venv/Scripts/python.exe" -m pytest tests/ -v
+.\venv\Scripts\python.exe -m pytest tests/test_smoke.py -q
 ```
 
-Or with unittest:
-```powershell
-& "c:/Project Bruh/venv/Scripts/python.exe" "c:/Project Bruh/tools/scripts/smoke_check.py"
-```
+Current smoke coverage includes router, planner, execution flows, memory/context, and filesystem operations.
+
+## Troubleshooting
+
+- If wake/voice misses commands: check microphone permissions and ambient noise.
+- If AI path fails: verify `GEMINI_API_KEY` and internet connectivity.
+- If screen analysis is weak: verify Tesseract install/path.
+- If browser actions fail: reinstall Playwright Chromium.
+- If filesystem command fails to resolve: try explicit location phrasing (`... in desktop`, `open folder documents`).
+
+## Caution
+
+Filesystem commands can modify/delete local files. Use `filesystem_scope=home` if you want stricter boundaries.

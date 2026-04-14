@@ -2,6 +2,15 @@ import re
 import time
 import concurrent.futures
 
+from tools.filesystem_tools import (
+    create_file as fs_create_file,
+    create_folder as fs_create_folder,
+    fs_copy,
+    fs_delete,
+    fs_move,
+    fs_open,
+    fs_rename,
+)
 from tools.system_tools import (
     close_app,
     open_app,
@@ -171,3 +180,43 @@ def execute(intent, params):
             play_youtube(params["query"])
             return "fallback"
         return "success"
+    elif intent == "create_folder":
+        name = (params.get("name") or "").strip()
+        if not name:
+            return "Need a folder name."
+        parent = (params.get("parent") or "").strip() or None
+        return fs_create_folder(name, parent)
+    elif intent == "create_file":
+        name = (params.get("name") or "").strip()
+        if not name:
+            return "Need a file name."
+        parent = (params.get("parent") or "").strip() or None
+        return fs_create_file(name, parent)
+    elif intent == "fs_copy":
+        src = (params.get("src") or "").strip()
+        dst = (params.get("dst") or "").strip()
+        if not src or not dst:
+            return "Need source and destination."
+        return fs_copy(src, dst)
+    elif intent == "fs_move":
+        src = (params.get("src") or "").strip()
+        dst = (params.get("dst") or "").strip()
+        if not src or not dst:
+            return "Need source and destination."
+        return fs_move(src, dst)
+    elif intent == "fs_delete":
+        path = (params.get("path") or "").strip()
+        if not path:
+            return "Need a path to delete."
+        return fs_delete(path)
+    elif intent == "fs_rename":
+        src = (params.get("src") or "").strip()
+        dst = (params.get("dst") or "").strip()
+        if not src or not dst:
+            return "Need old and new names."
+        return fs_rename(src, dst)
+    elif intent == "fs_open":
+        path = (params.get("path") or "").strip()
+        if not path:
+            return "Need a path."
+        return fs_open(path)

@@ -1,3 +1,4 @@
+import re
 from typing import Optional
 
 from ai.gemini import ask_gemini
@@ -82,7 +83,6 @@ def _looks_like_conversation(command: str) -> bool:
 
 def _looks_like_memory(command: str) -> bool:
     """Detect remember/recall patterns that belong to memory_agent."""
-    import re
     c = command.strip().lower()
     if "remember" in c:
         return True
@@ -106,6 +106,12 @@ def _looks_like_short_chat(command: str) -> bool:
         "click", "type", "scroll", "screenshot", "volume", "mute",
         "remember", "screen", "code", "debug", "fix",
     )
+    if re.search(
+        r"\b(create|make|folder|file|directory|copy|move|cut|delete|remove|"
+        r"rename|duplicate|trash)\b",
+        c,
+    ):
+        return False
     if any(k in c for k in skip):
         return False
     if len(words) <= 6:

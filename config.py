@@ -6,6 +6,7 @@ so users can customise without editing Python source.
 
 import json
 import os
+from pathlib import Path
 
 _CONFIG_FILE = os.path.join(os.path.dirname(__file__), "config.json")
 _overrides = {}
@@ -24,6 +25,21 @@ def _get(key, default):
 # ---------------------------------------------------------------------------
 # Paths
 # ---------------------------------------------------------------------------
+
+
+def get_bruh_files_root() -> Path:
+    """Voice-created files and folders live here (override in config.json: bruh_files_root)."""
+    custom = _get("bruh_files_root", None)
+    if custom:
+        return Path(os.path.expandvars(str(custom))).expanduser().resolve()
+    return (Path.home() / "Documents" / "BruhFiles").resolve()
+
+
+def get_filesystem_scope() -> str:
+    """Where file commands may touch: ``home`` (under user profile + Bruh root) or ``full`` (entire PC)."""
+    v = (str(_get("filesystem_scope", "full")) or "full").strip().lower()
+    return v if v in ("home", "full") else "full"
+
 
 TESSERACT_CMD = _get(
     "tesseract_cmd",

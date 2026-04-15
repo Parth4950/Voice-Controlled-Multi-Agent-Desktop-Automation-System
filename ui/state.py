@@ -6,6 +6,7 @@ _muted = False
 _wake_enabled = True
 _push_to_talk_requested = False
 _restart_requested = False
+_ui_tutor_requested = False
 
 
 def is_muted() -> bool:
@@ -55,4 +56,18 @@ def consume_restart_request() -> bool:
     with _lock:
         value = _restart_requested
         _restart_requested = False
+        return value
+
+
+def request_ui_tutor() -> None:
+    global _ui_tutor_requested
+    with _lock:
+        _ui_tutor_requested = True
+
+
+def consume_ui_tutor_request() -> bool:
+    global _ui_tutor_requested
+    with _lock:
+        value = _ui_tutor_requested
+        _ui_tutor_requested = False
         return value

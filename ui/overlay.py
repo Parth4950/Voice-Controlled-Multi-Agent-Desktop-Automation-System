@@ -245,6 +245,22 @@ def _run_ui_thread() -> None:
             self._event_timer.timeout.connect(self._drain_events)
             self._event_timer.start(60)
 
+            self.tutor_popup = QLabel(None)
+            self.tutor_popup.setWindowFlags(Qt.ToolTip | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
+            self.tutor_popup.hide()
+            self.tutor_popup.setWordWrap(True)
+            self.tutor_popup.setStyleSheet(
+                "background-color: rgba(7, 18, 31, 230);"
+                "color: #b6ebff;"
+                "border: 1px solid rgba(95, 205, 255, 160);"
+                "border-radius: 12px;"
+                "padding: 10px;"
+            )
+            self.tutor_popup.resize(320, 140)
+            self._popup_timer = QTimer(self)
+            self._popup_timer.setSingleShot(True)
+            self._popup_timer.timeout.connect(self.tutor_popup.hide)
+
         def _on_ptt(self):
             request_push_to_talk()
             self._append_log("PTT requested")
@@ -350,6 +366,30 @@ def _run_ui_thread() -> None:
                 self._set_state("SPEAKING")
             elif t == "SPEAK_END":
                 self._set_state("LISTENING" if self.session_active else "IDLE")
+            elif t == "UI_TUTOR_POPUP":
+                self._show_tutor_popup(payload or {})
+
+        def _show_tutor_popup(self, payload):
+            element = str(payload.get("element") or "Unknown element").strip()
+            explanation = str(payload.get("explanation") or "").strip()
+            recommendation = str(payload.get("recommendation") or "").strip()
+            cursor = payload.get("cursor") or {}
+            x = int(cursor.get("x") or self.x())
+            y = int(cursor.get("y") or self.y())
+            text = (
+                f"Element: {element}\n"
+                f"{explanation[:130]}\n"
+                f"Use now: {recommendation[:90]}"
+            )
+            self.tutor_popup.setText(text)
+            self.tutor_popup.adjustSize()
+            w = min(360, max(260, self.tutor_popup.width()))
+            h = min(180, max(120, self.tutor_popup.height()))
+            self.tutor_popup.resize(w, h)
+            self.tutor_popup.move(x + 18, y + 22)
+            self.tutor_popup.raise_()
+            self.tutor_popup.show()
+            self._popup_timer.start(3200)
 
         def _drain_events(self):
             for ev in consume_events():

@@ -33,6 +33,7 @@ from memory.memory import remember, recall
 from context.screen import capture_screen, extract_text, get_cached_ocr
 from ai.gemini import ask_gemini
 from agents.personality import bruh_prompt
+from agents.ui_tutor_agent import handle_ui_tutor
 
 _SCREEN_GEMINI_TIMEOUT = 8
 _OCR_MAX_CHARS = 1000
@@ -113,6 +114,8 @@ def execute(intent, params):
         except Exception as e:
             safe_log("ERROR -> Screen analysis failed:", e)
             return "Screen analysis broke. Try again."
+    elif intent == "ui_tutor":
+        return handle_ui_tutor(params.get("query"))
     elif intent == "remember":
         remember(params["key"], params["value"])
     elif intent == "recall":

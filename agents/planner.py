@@ -10,6 +10,7 @@ _VALID_AGENTS = frozenset(
         "system_agent",
         "automation_agent",
         "memory_agent",
+        "ui_tutor_agent",
     }
 )
 
@@ -62,6 +63,22 @@ def _looks_like_screen_question(command: str) -> bool:
         "currently on my", "what is on my", "what's on my",
     )
     return any(h in c for h in screen_hints)
+
+
+def _looks_like_ui_tutor(command: str) -> bool:
+    c = command.strip().lower()
+    normalized = re.sub(r"[^\w\s]", "", c).strip()
+    exact = {
+        "what is this",
+        "what does this do",
+        "explain this",
+        "should i use this",
+    }
+    if normalized in exact:
+        return True
+    if ("should i use this" in c) or ("explain this" in c):
+        return True
+    return False
 
 
 def _looks_like_conversation(command: str) -> bool:
@@ -122,6 +139,10 @@ def _looks_like_short_chat(command: str) -> bool:
 def plan_task(command):
     print("DEBUG -> Planner received:", command)
 
+    if _looks_like_ui_tutor(command):
+        print("DEBUG -> Planner output: ui_tutor_agent (ui tutor heuristic)")
+        return "ui_tutor_agent"
+
     if _looks_like_screen_question(command):
         print("DEBUG -> Planner output: code_agent (screen heuristic)")
         return "code_agent"
@@ -151,6 +172,7 @@ Agents:
 - automation_agent — Click, type, scroll, automate the UI, keyboard/mouse control.
 - memory_agent — Remember or recall stored facts the user asked to save.
 - code_agent — Write, fix, or explain source code and programming. Also handles "what am I looking at", "what's on my screen", or any request about what's visible on screen (captures and reads the screen via OCR).
+- ui_tutor_agent — Explain the UI element near the cursor, what it does, and if user should use it now.
 
 If unsure between web_agent and system_agent, choose web_agent.
 

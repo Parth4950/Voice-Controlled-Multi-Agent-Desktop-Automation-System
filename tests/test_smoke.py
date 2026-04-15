@@ -150,6 +150,14 @@ class RouterScreenAwarenessTest(unittest.TestCase):
         intent, _ = route_command("can you see my screen")
         self.assertEqual(intent, "analyze_context")
 
+    def test_ui_tutor_phrase(self):
+        intent, _ = route_command("what is this")
+        self.assertEqual(intent, "ui_tutor")
+
+    def test_ui_tutor_phrase_with_punctuation(self):
+        intent, _ = route_command("what does this do?")
+        self.assertEqual(intent, "ui_tutor")
+
 
 # ---------------------------------------------------------------------------
 # Router — Phase 3: web automation intents
@@ -347,6 +355,11 @@ class WebAutomationExecutionTest(unittest.TestCase):
         with mock.patch("agents.execution.scroll_page", return_value=True):
             result = execute("web_scroll", {"direction": "down"})
             self.assertEqual(result, "Scrolled down")
+
+    def test_ui_tutor_execution(self):
+        with mock.patch("agents.execution.handle_ui_tutor", return_value={"element": "menu"}):
+            result = execute("ui_tutor", {"query": "what is this"})
+            self.assertEqual(result["element"], "menu")
 
 
 class ExecutionFilesystemTest(unittest.TestCase):
@@ -571,6 +584,70 @@ class PlannerScreenHeuristicTest(unittest.TestCase):
         from agents.planner import _looks_like_screen_question
         self.assertFalse(_looks_like_screen_question("what is python"))
         self.assertFalse(_looks_like_screen_question("tell me a joke"))
+
+
+class UiTutorAgentSmokeTest(unittest.TestCase):
+    def test_normalize_output_vscode(self):
+        from agents.ui_tutor_agent import _normalize_output
+
+        raw = json.dumps(
+            {
+                "element": "Explorer panel",
+                "software": "VS Code",
+                "explanation": "Shows project files.",
+                "usage": "Use it to open files quickly.",
+                "recommendation": "Use it now to jump to target file.",
+                "confidence": "high",
+            }
+        )
+        out = _normalize_output(raw)
+        self.assertEqual(out["software"], "VS Code")
+        self.assertEqual(out["confidence"], "high")
+
+    def test_normalize_output_blender(self):
+        from agents.ui_tutor_agent import _normalize_output
+
+        raw = json.dumps(
+            {
+                "element": "Transform gizmo",
+                "software": "Blender",
+                "explanation": "Moves or rotates selected object.",
+                "usage": "Drag axis handles to transform.",
+                "recommendation": "Use it now for object alignment.",
+                "confidence": "medium",
+            }
+        )
+        out = _normalize_output(raw)
+        self.assertEqual(out["software"], "Blender")
+        self.assertEqual(out["confidence"], "medium")
+
+    def test_normalize_output_browser(self):
+        from agents.ui_tutor_agent import _normalize_output
+
+        raw = json.dumps(
+            {
+                "element": "Address bar",
+                "software": "Browser",
+                "explanation": "Enter URLs or search terms.",
+                "usage": "Type destination then press Enter.",
+                "recommendation": "Use it now to navigate.",
+                "confidence": "high",
+            }
+        )
+        out = _normalize_output(raw)
+        self.assertEqual(out["software"], "Browser")
+        self.assertEqual(out["confidence"], "high")
+
+    def test_build_speech_is_short(self):
+        from agents.ui_tutor_agent import _build_speech
+
+        out = _build_speech(
+            {
+                "element": "Insert menu",
+                "explanation": "Use this to add elements quickly into your design canvas.",
+            }
+        )
+        self.assertLessEqual(len(out), 120)
 
 
 # ---------------------------------------------------------------------------

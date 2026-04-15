@@ -4,6 +4,7 @@ from agents.code_agent import run_code_agent
 from agents.memory_agent import run_memory_agent
 from agents.system_agent import run_system_agent
 from agents.web_agent import run_web_agent
+from agents.ui_tutor_agent import handle_ui_tutor
 
 
 def dispatch(agent, command):
@@ -18,4 +19,6 @@ def dispatch(agent, command):
         return run_web_agent(command)
     if agent == "system_agent":
         return run_system_agent(command)
+    if agent == "ui_tutor_agent":
+        return handle_ui_tutor(command)
     return execute("analyze_context", {"query": command})

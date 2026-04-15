@@ -40,6 +40,13 @@ def _split_tail_in_location(tail: str):
 
 def route_command(command: str):
     command = command.strip().lower()
+    normalized = re.sub(r"[^\w\s]", "", command).strip()
+    _ui_tutor_phrases = (
+        "what is this",
+        "what does this do",
+        "explain this",
+        "should i use this",
+    )
 
     automation_keywords = [
         "now", "play it", "start", "click", "first", "auto", "automatically",
@@ -73,6 +80,9 @@ def route_command(command: str):
         if key:
             return ("recall", {"key": key})
         return ("unknown", {})
+
+    if normalized in _ui_tutor_phrases:
+        return ("ui_tutor", {"query": command})
 
     # --- Screen analysis (only clearly screen-related commands) ---
     if any(keyword in command for keyword in _screen_keywords):

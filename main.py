@@ -1,6 +1,7 @@
 import atexit
 import signal
 import os as _os
+import re
 
 from agents.router import route_command
 from agents.execution import execute
@@ -14,7 +15,9 @@ from tools.browser import close_browser
 from memory.context import update_context
 from ui.event_bus import emit_event
 from ui.overlay import start_overlay
-from ui.state import consume_push_to_talk, consume_restart_request, is_wake_enabled
+from ui.hotkeys import start_hotkeys
+from ui.state import consume_push_to_talk, consume_restart_request, consume_ui_tutor_request, is_wake_enabled
+from agents.ui_tutor_agent import handle_ui_tutor
 
 _LOCK_FILE = _os.path.join(_os.path.dirname(__file__), ".bruh.lock")
 
@@ -76,6 +79,11 @@ def _fast_path_feedback(intent, result):
         return str(result) if result else "I don't remember that"
     if intent == "analyze_context":
         return str(result)[:300] if result else "Couldn't read your screen."
+    if intent == "ui_tutor":
+        if isinstance(result, dict):
+            fallback = "I can't clearly identify that. Try pointing more precisely."
+            return (result.get("speech") or result.get("explanation") or fallback)[:140]
+        return str(result)[:140] if result else "I can't clearly identify that. Try pointing more precisely."
     if intent in ("navigate", "web_click", "web_type", "web_scroll"):
         return str(result) if result else None
     if intent in (
@@ -112,11 +120,20 @@ def is_simple_command(command):
         "see my screen", "what app is open", "what is this code", "what is this app",
         "currently on my", "what is on my", "what's on my",
     ]
+    tutor_triggers = [
+        "what is this",
+        "what does this do",
+        "explain this",
+        "should i use this",
+    ]
     if any(command.startswith(k) for k in keywords):
         return True
     if command.startswith("new folder ") or command.startswith("new file "):
         return True
     if any(t in command for t in screen_triggers):
+        return True
+    normalized = re.sub(r"[^\w\s]", "", command).strip()
+    if normalized in tutor_triggers:
         return True
     return False
 
@@ -153,11 +170,21 @@ _INSTANT_REPLIES = {
 print(f"=== BRUH v2 | PID {_os.getpid()} | {time.strftime('%Y-%m-%d %H:%M:%S')} ===")
 safe_log(f"DEBUG -> Process started PID={_os.getpid()}")
 start_overlay()
+start_hotkeys()
 emit_event("STATE_CHANGE", "IDLE")
 emit_event("SESSION_ACTIVE", False)
 
 while True:
     try:
+        if consume_ui_tutor_request():
+            emit_event("STATE_CHANGE", "THINKING")
+            tutor_result = handle_ui_tutor(command="hotkey ui tutor")
+            short = _fast_path_feedback("ui_tutor", tutor_result)
+            emit_event("AI_RESPONSE", {"text": short})
+            speak(short, max_chars=140)
+            emit_event("STATE_CHANGE", "LISTENING" if session_active else "IDLE")
+            continue
+
         if consume_restart_request():
             session_active = False
             empty_in_session_count = 0
@@ -304,6 +331,7 @@ while True:
             "system_agent",
             "automation_agent",
             "memory_agent",
+            "ui_tutor_agent",
         }
         if agent not in valid_agents:
             agent = "web_agent"
@@ -324,9 +352,12 @@ while True:
 
         if not response:
             response = "Got nothing from that. Try again."
-        safe_log("Bruh:", response)
-        emit_event("AI_RESPONSE", {"text": response})
-        speak(response, max_chars=300)
+        speech_text = response
+        if isinstance(response, dict):
+            speech_text = _fast_path_feedback("ui_tutor", response)
+        safe_log("Bruh:", speech_text)
+        emit_event("AI_RESPONSE", {"text": speech_text})
+        speak(speech_text, max_chars=140 if isinstance(response, dict) else 300)
         log_timing("command_to_voice_output", cycle_start)
         log_timing("ai_command_total", cycle_start)
 

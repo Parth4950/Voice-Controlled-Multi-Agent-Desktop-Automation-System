@@ -10,6 +10,7 @@ context = {
     "last_command": None,
     "last_response": None,
     "last_screen_text": None,
+    "current_task": "general usage",
     "last_updated_at": None,
     "history": [],
 }
@@ -28,7 +29,7 @@ def _load_from_disk():
             age = (datetime.now(timezone.utc) - then).total_seconds()
             if age > _STALENESS_SECONDS:
                 return
-        for key in ("last_command", "last_response", "last_screen_text", "last_updated_at"):
+        for key in ("last_command", "last_response", "last_screen_text", "current_task", "last_updated_at"):
             if key in data:
                 context[key] = data[key]
         context["history"] = list(data.get("history", []))[-_HISTORY_LIMIT:]
@@ -74,9 +75,22 @@ def get_context():
         "last_command": context["last_command"],
         "last_response": context["last_response"],
         "last_screen_text": context["last_screen_text"],
+        "current_task": context.get("current_task") or "general usage",
         "last_updated_at": context["last_updated_at"],
         "history": list(context["history"]),
     }
+
+
+def set_current_task(task):
+    cleaned = (task or "").strip()
+    context["current_task"] = cleaned or "general usage"
+    context["last_updated_at"] = datetime.now(timezone.utc).isoformat()
+    _save_to_disk()
+
+
+def get_current_task():
+    task = context.get("current_task")
+    return task if task else "general usage"
 
 
 def format_context():
